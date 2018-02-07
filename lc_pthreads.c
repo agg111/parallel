@@ -16,24 +16,15 @@ int num_threads;
 
 int curr_dim;
 
-double XX[MAX_THREADS];
-double XXw[MAX_THREADS];
-double Xy[MAX_THREADS];
-
 double** X;
 double* w;
 double* Y;
 
 double* Xw;
-//double* index;
 double* Xisquare;
 double* Xiy;
 
 int threads[MAX_THREADS];
-
-//void computeXw();
-//void *computeDifferential(void *);
-//void *getValue(void *);
 
 void computew();
 void computeXw();
