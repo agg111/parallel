@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <pthread.h>
-#include <stdlib.h>
-
-#include <stdio.h>
+ #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -24,11 +20,15 @@ double* Xw;
 double* Xisquare;
 double* Xiy;
 
+double *Xwtemp;
+
 int threads[MAX_THREADS];
 
 void computew();
 void computeXw();
 double getLoss();
+
+void *computeXw_parallel(void *);
 
 static inline double monotonic_seconds();
 
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	printf("Numbers = %d\n", numbers);
 	printf("Dimensions = %d\n", dimensions);
 	
-	//numbers = 1;
+	//numbers = 1000;
 
 	printf("iterations = %d, num_threads = %d\n", iterations, num_threads);
 
@@ -108,8 +108,16 @@ int main(int argc, char *argv[])
 void computew() 
 {
 	
-	double *yXwdiff = (double *) calloc (numbers, sizeof(double));
-	double *Xwtemp = (double *) calloc (numbers, sizeof(double));
+	double *yXwdiff;
+	//double *yXwdiff = (double *) calloc (numbers, sizeof(double));
+	Xwtemp = (double *) calloc (numbers, sizeof(double));
+	
+	pthread_t p_threads[MAX_THREADS];
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+
+	
 	double numerator; 
 	for(int i = 0; i < iterations; i++) 
 	{
@@ -119,7 +127,7 @@ void computew()
 			//yXwdiff[numbers] = { 0 };
 			//Xwtemp[numbers] = { 0 };
 			yXwdiff = (double *) calloc (numbers, sizeof(double));
-			Xwtemp = (double *)calloc (numbers, sizeof(double));
+			//Xwtemp = (double *)calloc (numbers, sizeof(double));
 			for(int k = 0; k < numbers; k++) {
 				Xwtemp[k] = Xw[k] - (X[k][j] * w[j]);
 				yXwdiff[k] += Y[k] - Xwtemp[k];
@@ -127,16 +135,69 @@ void computew()
 			}
 			//printf("numerator = %lf\n", numerator);
 			w[j] = numerator / (Xisquare[j] + 1e-12);
-
-			for (int k = 0; k < numbers; k++) {
-				Xw[k] = Xwtemp[k] + (X[k][j] * w[j]);
+			
+			/*pthread_t p_threads[MAX_THREADS];
+			pthread_attr_t attr;
+			pthread_attr_init(&attr);
+			pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);*/
+			free(yXwdiff);
+			int num_per_thread = (int) numbers/ num_threads;
+			//printf("num_per_thread = %d\n", num_per_thread);
+			
+			curr_dim = j;		
+	
+			for(int iter_thread = 0; iter_thread < num_threads; iter_thread++) {
+				threads[iter_thread] = iter_thread;
+				pthread_create(&p_threads[iter_thread], &attr, computeXw_parallel, (void *) &threads[iter_thread]);
 			}
-		}
+				 
+			for(int iter_thread = 0; iter_thread < num_threads; iter_thread++) {
+				pthread_join(p_threads[iter_thread], NULL);
+			}
 
+			//free(yXwdiff);
+			
+			/*for (int k = 0; k < numbers; k++) {
+				//Xw[k] = Xwtemp[k] + (X[k][j] * w[j]);
+				printf("k = %d Xw[k] = %lf\n", k, Xw[k]);
+			}*/
+		}
+		
+		/*for(int ii = 0; ii < numbers; ii++) {
+			printf("ii = %d Xw  = %lf\n", ii, Xw[ii]);
+		}*/
+		
 		double loss = getLoss(); 
 		printf("Iteration = %d Loss = %lf\n", i, loss);
 	}
 	
+}
+
+
+void *computeXw_parallel(void *ptr) {
+	int *p = ptr;
+	int start = *p;
+	int thread_no = start;
+	int end = 0;
+		
+	int num_per_thread = numbers/num_threads;
+	int j = curr_dim;
+
+	//printf("Thread = %d, num_per_thread = %d\n", start, num_per_thread);	
+	start = thread_no * num_per_thread;
+
+	if(thread_no == num_threads - 1) {
+		end = numbers;
+	}
+	else {
+		end = start + num_per_thread;
+	}
+
+	//printf("start = %d end = %d\n", start, end);	
+	for(int i = start; i < end; i++) {
+		Xw[i] = Xwtemp[i] + (X[i][j] * w[j]);
+	}
+		
 }
 
 double getLoss() 
